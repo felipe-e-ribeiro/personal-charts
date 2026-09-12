@@ -67,6 +67,19 @@ partir do Postgres self-hosted do próprio chart.
 {{- end -}}
 
 {{/*
+"true" se o chart consegue de fato montar uma DATABASE_URL (databaseUrl
+explícita, ou postgres self-hosted com senha conhecida). Evita que o chart
+injete uma DATABASE_URL com senha vazia sobrescrevendo (via precedência de
+`env` sobre `envFrom`) uma DATABASE_URL real vinda de secrets.existingSecret
+-- ver nota em values.yaml sobre o fluxo de produção via ArgoCD.
+*/}}
+{{- define "platform-chart.hasResolvedDatabaseUrl" -}}
+{{- if or .Values.secrets.databaseUrl (and .Values.postgres.enabled .Values.secrets.postgresPassword) -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
 Base URL pública do app, derivada de ingress.host (com https quando TLS
 está ligado). Só faz sentido se ingress.enabled.
 */}}

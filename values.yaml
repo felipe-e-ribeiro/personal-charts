@@ -119,7 +119,12 @@ secrets:
   existingSecret: ""
   data: {}
   # -- Senha usada tanto pelo Postgres self-hosted quanto pela DATABASE_URL
-  # default. Ignorado se `postgres.enabled: false` e `databaseUrl` vazio.
+  # default. Só funciona vindo de values (texto puro) -- pensado pro fluxo
+  # local/dev via um values-secrets.yaml fora do git. Em produção via
+  # `existingSecret`, deixe este campo vazio: o Postgres self-hosted passa a
+  # ler a senha de uma chave `POSTGRES_PASSWORD` dentro do próprio Secret
+  # (crie-a manualmente), e a DATABASE_URL deixa de ser calculada pelo chart
+  # -- coloque-a pronta como chave `DATABASE_URL` nesse mesmo Secret.
   postgresPassword: ""
   # -- DATABASE_URL completa. Deixe vazio para o chart montar automaticamente
   # a partir de `postgres.*` + `secrets.postgresPassword` (banco self-hosted

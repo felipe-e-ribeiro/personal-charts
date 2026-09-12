@@ -32,7 +32,7 @@ spec:
                     name: {{ include "platform-chart.secretName" . }}
               {{- end }}
               env:
-                {{- if .Values.secrets.databaseUrlEnvName }}
+                {{- if and .Values.secrets.databaseUrlEnvName (include "platform-chart.hasResolvedDatabaseUrl" .) }}
                 - name: {{ .Values.secrets.databaseUrlEnvName }}
                   value: {{ include "platform-chart.databaseUrl" . | quote }}
                 {{- end }}

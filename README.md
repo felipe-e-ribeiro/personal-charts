@@ -56,6 +56,20 @@ Deliberadamente fora do chart por ora: `nodeSelector`/`tolerations`/
 `affinity`, múltiplos CronJobs por release, `PodDisruptionBudget`,
 `NetworkPolicy`, automação de secrets (Sealed Secrets/External Secrets).
 
+## Segredos e Postgres self-hosted em produção
+
+O chart nunca arrisca sobrescrever um segredo real com um valor calculado
+vazio: a `DATABASE_URL` só é montada automaticamente quando
+`secrets.postgresPassword` está preenchido em texto puro (fluxo local/dev,
+via um `values-secrets.yaml` fora do git). Em produção, com
+`secrets.existingSecret` apontando pra um Secret criado fora do Helm:
+
+- o Postgres self-hosted lê a senha de uma chave `POSTGRES_PASSWORD` **desse
+  mesmo Secret** (via `secretKeyRef`), não de `values.yaml`;
+- a `DATABASE_URL` deixa de ser calculada pelo chart -- coloque-a já pronta
+  como chave `DATABASE_URL` no mesmo Secret, e ela chega ao container via
+  `envFrom`.
+
 ## Validar localmente (sem cluster)
 
 ```bash

@@ -27,8 +27,18 @@ spec:
               value: {{ .Values.postgres.database | quote }}
             - name: POSTGRES_USER
               value: {{ .Values.postgres.username | quote }}
+            {{- if .Values.secrets.postgresPassword }}
             - name: POSTGRES_PASSWORD
               value: {{ .Values.secrets.postgresPassword | quote }}
+            {{- else }}
+            {{/* Produção via existingSecret: espera uma chave POSTGRES_PASSWORD
+            nesse Secret (criado fora do Helm) -- ver README. */}}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "platform-chart.secretName" . }}
+                  key: POSTGRES_PASSWORD
+            {{- end }}
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           volumeMounts:
