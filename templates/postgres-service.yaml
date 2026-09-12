@@ -1,0 +1,16 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "platform-chart.fullname" . }}-postgres
+  labels:
+    {{- include "platform-chart.componentLabels" (dict "component" "postgres" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 4 }}
+spec:
+  clusterIP: None # headless -- StatefulSet
+  selector:
+    {{- include "platform-chart.componentSelectorLabels" (dict "component" "postgres" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 4 }}
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+{{- end }}

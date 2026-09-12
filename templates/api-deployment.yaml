@@ -1,0 +1,78 @@
+{{- if .Values.api.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "platform-chart.fullname" . }}-api
+  labels:
+    {{- include "platform-chart.componentLabels" (dict "component" "api" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 4 }}
+spec:
+  {{- if not .Values.api.autoscaling.enabled }}
+  replicas: {{ .Values.api.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "platform-chart.componentSelectorLabels" (dict "component" "api" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "platform-chart.componentLabels" (dict "component" "api" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 8 }}
+    spec:
+      {{- with .Values.image.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.api.migration.enabled }}
+      initContainers:
+        - name: migrate
+          image: {{ include "platform-chart.image" (dict "repository" .Values.api.image.repository "tag" (.Values.api.image.tag | default .Chart.AppVersion) "Values" .Values) }}
+          command: {{ toYaml .Values.api.migration.command | nindent 12 }}
+          {{- if or .Values.secrets.create .Values.secrets.existingSecret }}
+          envFrom:
+            - secretRef:
+                name: {{ include "platform-chart.secretName" . }}
+          {{- end }}
+          {{- if .Values.secrets.databaseUrlEnvName }}
+          env:
+            - name: {{ .Values.secrets.databaseUrlEnvName }}
+              value: {{ include "platform-chart.databaseUrl" . | quote }}
+          {{- end }}
+      {{- end }}
+      containers:
+        - name: api
+          image: {{ include "platform-chart.image" (dict "repository" .Values.api.image.repository "tag" (.Values.api.image.tag | default .Chart.AppVersion) "Values" .Values) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.port }}
+          {{- if or .Values.secrets.create .Values.secrets.existingSecret }}
+          envFrom:
+            - secretRef:
+                name: {{ include "platform-chart.secretName" . }}
+          {{- end }}
+          env:
+            {{- if .Values.secrets.databaseUrlEnvName }}
+            - name: {{ .Values.secrets.databaseUrlEnvName }}
+              value: {{ include "platform-chart.databaseUrl" . | quote }}
+            {{- end }}
+            {{- if .Values.ingress.publicUrlEnvName }}
+            - name: {{ .Values.ingress.publicUrlEnvName }}
+              value: {{ include "platform-chart.publicUrl" . | quote }}
+            {{- end }}
+            {{- with .Values.api.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.api.probes.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.api.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.api.probes.readiness.periodSeconds }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.api.probes.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.api.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.api.probes.liveness.periodSeconds }}
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+{{- end }}

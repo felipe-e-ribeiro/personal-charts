@@ -1,0 +1,48 @@
+{{- if .Values.cronjob.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "platform-chart.fullname" . }}-cron
+  labels:
+    {{- include "platform-chart.componentLabels" (dict "component" "cronjob" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 4 }}
+spec:
+  schedule: {{ .Values.cronjob.schedule | quote }}
+  concurrencyPolicy: {{ .Values.cronjob.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.cronjob.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.cronjob.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "platform-chart.componentLabels" (dict "component" "cronjob" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 12 }}
+        spec:
+          restartPolicy: OnFailure
+          {{- with .Values.image.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: cron
+              image: {{ include "platform-chart.image" (dict "repository" (.Values.cronjob.image.repository | default .Values.api.image.repository) "tag" (.Values.cronjob.image.tag | default .Values.api.image.tag | default .Chart.AppVersion) "Values" .Values) }}
+              command: {{ toYaml .Values.cronjob.command | nindent 16 }}
+              {{- if or .Values.secrets.create .Values.secrets.existingSecret }}
+              envFrom:
+                - secretRef:
+                    name: {{ include "platform-chart.secretName" . }}
+              {{- end }}
+              env:
+                {{- if .Values.secrets.databaseUrlEnvName }}
+                - name: {{ .Values.secrets.databaseUrlEnvName }}
+                  value: {{ include "platform-chart.databaseUrl" . | quote }}
+                {{- end }}
+                {{- if .Values.ingress.publicUrlEnvName }}
+                - name: {{ .Values.ingress.publicUrlEnvName }}
+                  value: {{ include "platform-chart.publicUrl" . | quote }}
+                {{- end }}
+                {{- with .Values.cronjob.extraEnv }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+              resources:
+                {{- toYaml .Values.cronjob.resources | nindent 16 }}
+{{- end }}

@@ -1,0 +1,41 @@
+App "{{ .Release.Name }}" instalado no namespace "{{ .Release.Namespace }}" via platform-chart.
+
+{{- if .Values.ingress.enabled }}
+
+URL pública: {{ include "platform-chart.publicUrl" . }}
+{{- if .Values.ingress.tls.enabled }}
+TLS via secret "{{ .Values.ingress.tls.secretName }}" -- confira se o
+cluster-issuer do cert-manager referenciado nas annotations do Ingress
+existe no cluster antes do primeiro deploy, senão o certificado fica preso
+em "pending".
+{{- end }}
+{{- else }}
+
+Ingress desabilitado -- exponha o(s) Service(s) por outro meio (port-forward,
+LoadBalancer, etc).
+{{- end }}
+
+{{- if .Values.postgres.enabled }}
+
+Postgres self-hosted no próprio cluster (StatefulSet
+"{{ include "platform-chart.fullname" . }}-postgres", PVC de
+{{ .Values.postgres.persistence.size }}).
+{{- end }}
+
+{{- if .Values.cronjob.enabled }}
+
+Job periódico:
+  kubectl get cronjob -n {{ .Release.Namespace }} {{ include "platform-chart.fullname" . }}-cron
+{{- end }}
+
+Verifique o rollout:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+{{- if .Values.secrets.create }}
+
+⚠️  secrets.create=true: os valores de `secrets.data`/`secrets.postgresPassword`
+deste values.yaml foram gravados em texto puro no Secret
+"{{ include "platform-chart.secretName" . }}" e no histórico do `helm`. Para
+produção prefira `secrets.create: false` + `secrets.existingSecret` apontando
+pra um Secret criado fora do Helm.
+{{- end }}

@@ -1,0 +1,40 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "v3.15.0"
+
+      - name: Lint
+        run: helm lint .
+
+      - name: Template sanity check (api-only example)
+        run: helm template ci-api . -f ci/test-values/api-example.yaml > /dev/null
+
+      - name: Template sanity check (full example)
+        run: helm template ci-full . -f ci/test-values/full-example.yaml > /dev/null
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
+            --username "${{ github.actor }}" --password-stdin
+
+      - name: Package
+        run: helm package . --version "${GITHUB_REF_NAME#v}"
+
+      - name: Push
+        run: helm push platform-chart-*.tgz "oci://ghcr.io/${{ github.repository_owner }}/charts"

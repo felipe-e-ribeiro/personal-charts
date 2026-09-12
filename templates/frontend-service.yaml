@@ -1,0 +1,15 @@
+{{- if .Values.frontend.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "platform-chart.fullname" . }}-frontend
+  labels:
+    {{- include "platform-chart.componentLabels" (dict "component" "frontend" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 4 }}
+spec:
+  selector:
+    {{- include "platform-chart.componentSelectorLabels" (dict "component" "frontend" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 4 }}
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+{{- end }}

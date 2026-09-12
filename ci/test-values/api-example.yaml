@@ -1,0 +1,15 @@
+# Values de exemplo: app só com API HTTP (sem frontend, sem cronjob, sem
+# postgres). Usado pela CI como sanity check de `helm template`.
+api:
+  enabled: true
+  image:
+    repository: ghcr.io/example/api-example
+    tag: "1.0.0"
+  port: 8080
+
+ingress:
+  enabled: true
+  host: api-example.example.com
+  tls:
+    enabled: true
+    secretName: api-example-tls

@@ -1,0 +1,20 @@
+{{/*
+Hook opcional -- só gera algo se você já tiver o Prometheus Operator (CRDs
+ServiceMonitor/PrometheusRule) instalado no cluster. Desligado por padrão.
+*/}}
+{{- if and .Values.monitoring.enabled .Values.api.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "platform-chart.fullname" . }}-api
+  labels:
+    {{- include "platform-chart.componentLabels" (dict "component" "api" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "platform-chart.componentSelectorLabels" (dict "component" "api" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 6 }}
+  endpoints:
+    - port: {{ .Values.monitoring.serviceMonitor.port }}
+      path: {{ .Values.monitoring.serviceMonitor.path }}
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+{{- end }}

@@ -1,0 +1,16 @@
+apiVersion: v2
+name: platform-chart
+description: >
+  Chart Helm compartilhado para apps pessoais (API HTTP + frontend estático,
+  com CronJob e Postgres self-hosted opcionais). Cada app declara isto como
+  dependência no seu próprio Chart.yaml e só fornece um values.yaml.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - platform-chart
+  - api
+  - frontend
+  - cronjob
+maintainers:
+  - name: Felipe

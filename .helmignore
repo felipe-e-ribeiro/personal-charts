@@ -1,0 +1,6 @@
+.git/
+.gitignore
+ci/
+.github/
+*.swp
+.DS_Store

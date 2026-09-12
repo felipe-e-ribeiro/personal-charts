@@ -1,0 +1,142 @@
+# Defaults do platform-chart. Uso pessoal / single-tenant -- pensado pra um
+# app por release, sem multi-tenancy. Cada app sobrescreve só o que precisa
+# no seu próprio values.yaml (aninhado sob o nome desta dependência, ex:
+# `platform-chart:` no values.yaml do app).
+
+image:
+  registry: "" # ex: ghcr.io/<usuario> -- deixe vazio pra usar repository completo
+  pullPolicy: IfNotPresent
+  imagePullSecrets: []
+
+# -- Componente API HTTP (backend). Desligue com `api.enabled: false` se o
+# app não tiver backend próprio (ex: site puramente estático).
+api:
+  enabled: true
+  image:
+    repository: ""
+    tag: "" # default: .Chart.AppVersion do app consumidor
+  replicaCount: 1
+  port: 8000
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {cpu: 250m, memory: 256Mi}
+  probes:
+    path: /health
+    readiness: {initialDelaySeconds: 5, periodSeconds: 10}
+    liveness: {initialDelaySeconds: 15, periodSeconds: 20}
+  extraEnv: []
+  # -- Roda num initContainer antes do container principal subir. Útil pra
+  # migration de banco (ex: `alembic upgrade head`) sem repetir em todo
+  # restart de pod.
+  migration:
+    enabled: false
+    command: []
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 80
+
+# -- Componente frontend estático/SPA. Desligue com `frontend.enabled: false`
+# se o app não tiver frontend (ex: só uma API).
+frontend:
+  enabled: false
+  image:
+    repository: ""
+    tag: ""
+  replicaCount: 1
+  port: 80
+  resources:
+    requests: {cpu: 25m, memory: 32Mi}
+    limits: {cpu: 100m, memory: 64Mi}
+  probes:
+    path: /
+    readiness: {initialDelaySeconds: 3, periodSeconds: 10}
+    liveness: {initialDelaySeconds: 10, periodSeconds: 20}
+
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations: {}
+  host: ""
+  tls:
+    enabled: false
+    secretName: ""
+  # -- Path onde a API é roteada quando api e frontend coexistem no mesmo
+  # host (evita CORS). Se `frontend.enabled: false`, a API fica na raiz.
+  apiPath: /api
+  # -- Se definido, injeta uma env var no container da API com a URL pública
+  # derivada de `ingress.host`/`ingress.tls.enabled` (ex: "PUBLIC_BASE_URL").
+  # Deixe vazio pra não injetar nada.
+  publicUrlEnvName: ""
+
+# -- Job periódico opcional (ex: notificações, limpeza). Um único CronJob
+# por release; se precisar de mais de um no futuro, isso vira uma lista.
+cronjob:
+  enabled: false
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  # -- Se vazio, reusa a imagem de `api.image`.
+  image:
+    repository: ""
+    tag: ""
+  command: []
+  extraEnv: []
+  resources:
+    requests: {cpu: 25m, memory: 64Mi}
+    limits: {cpu: 100m, memory: 128Mi}
+
+# -- Postgres self-hosted no próprio cluster. Pra produção "de verdade",
+# considere um banco gerenciado -- self-hosted é a escolha consciente de
+# manter a stack simples num cluster pessoal.
+postgres:
+  enabled: false
+  image:
+    repository: postgres
+    tag: "16-alpine"
+  database: app
+  username: app
+  # -- Esquema usado ao montar a DATABASE_URL default (ex: "postgresql",
+  # "postgresql+psycopg", "postgresql+asyncpg" -- depende do driver do app).
+  urlScheme: postgresql
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClassName: "" # vazio = storageClass default do cluster
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {cpu: 250m, memory: 512Mi}
+
+# -- Segredos da aplicação. `data` é um mapa livre chave/valor -- o chart não
+# assume nomes de campo específicos de nenhum app.
+# Em produção prefira `create: false` + `existingSecret` apontando pra um
+# Secret já criado fora do Helm (ex: via `kubectl create secret`), com as
+# mesmas chaves que o app espera.
+secrets:
+  create: false
+  existingSecret: ""
+  data: {}
+  # -- Senha usada tanto pelo Postgres self-hosted quanto pela DATABASE_URL
+  # default. Ignorado se `postgres.enabled: false` e `databaseUrl` vazio.
+  postgresPassword: ""
+  # -- DATABASE_URL completa. Deixe vazio para o chart montar automaticamente
+  # a partir de `postgres.*` + `secrets.postgresPassword` (banco self-hosted
+  # no cluster). Preencha manualmente ao apontar pra um banco externo.
+  databaseUrl: ""
+  # -- Nome da env var onde a DATABASE_URL (efetiva) é injetada na API e no
+  # CronJob. Deixe vazio pra não injetar nada.
+  databaseUrlEnvName: ""
+
+# -- Hooks opcionais de observabilidade, desligados por padrão. Só geram
+# recursos se você já tiver Prometheus Operator instalado no cluster.
+monitoring:
+  enabled: false
+  serviceMonitor:
+    path: /metrics
+    port: http
+    interval: 30s
+  prometheusRule:
+    enabled: false
+    rules: []

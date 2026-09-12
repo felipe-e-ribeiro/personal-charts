@@ -1,0 +1,13 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "platform-chart.fullname" . }}
+  labels:
+    {{- include "platform-chart.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: {{ include "platform-chart.fullname" . }}
+      rules:
+        {{- toYaml .Values.monitoring.prometheusRule.rules | nindent 8 }}
+{{- end }}

@@ -1,0 +1,44 @@
+# Values de exemplo: app completo (API + frontend + cronjob + postgres),
+# representando o caso mais complexo suportado pelo chart -- ex: o app
+# "pulso". Usado pela CI como sanity check de `helm template`.
+api:
+  enabled: true
+  image:
+    repository: ghcr.io/example/full-example-api
+    tag: "1.0.0"
+  port: 8000
+  migration:
+    enabled: true
+    command: ["alembic", "upgrade", "head"]
+
+frontend:
+  enabled: true
+  image:
+    repository: ghcr.io/example/full-example-frontend
+    tag: "1.0.0"
+  port: 80
+
+ingress:
+  enabled: true
+  host: full-example.example.com
+  tls:
+    enabled: true
+    secretName: full-example-tls
+  publicUrlEnvName: PUBLIC_BASE_URL
+
+cronjob:
+  enabled: true
+  schedule: "*/5 * * * *"
+  command: ["python", "-m", "app.jobs.tick"]
+
+postgres:
+  enabled: true
+  database: fullexample
+  username: app
+
+secrets:
+  create: true
+  postgresPassword: "example-only-not-real"
+  databaseUrlEnvName: DATABASE_URL
+  data:
+    SECRET_KEY: "example-only-not-real"
