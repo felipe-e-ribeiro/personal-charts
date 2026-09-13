@@ -94,7 +94,11 @@ cronjob:
 postgres:
   enabled: false
   image:
-    repository: postgres
+    # Nome totalmente qualificado (não "postgres") -- CRI-O com short-name
+    # mode "enforcing" (default do node OS da OCI) recusa nome curto com
+    # "ambiguous list" em vez de assumir docker.io (confirmado na migração
+    # do checklist-compras-infra, 2026-09-13).
+    repository: docker.io/library/postgres
     tag: "16-alpine"
   database: app
   username: app
@@ -116,7 +120,8 @@ postgres:
 redis:
   enabled: false
   image:
-    repository: redis
+    # Nome totalmente qualificado -- mesmo motivo do postgres.image acima.
+    repository: docker.io/library/redis
     tag: "7-bookworm"
   resources:
     requests: {cpu: 25m, memory: 32Mi}
