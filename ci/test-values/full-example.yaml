@@ -36,6 +36,12 @@ postgres:
   database: fullexample
   username: app
 
+redis:
+  enabled: true
+
+networkPolicy:
+  enabled: true
+
 secrets:
   create: true
   postgresPassword: "example-only-not-real"

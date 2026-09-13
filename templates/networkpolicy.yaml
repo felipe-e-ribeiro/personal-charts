@@ -1,0 +1,69 @@
+{{/*
+NetworkPolicies opcionais: isolam Postgres/Redis self-hosted, aceitando
+tráfego só dos componentes deste release que legitimamente precisam deles
+(api sempre; cronjob só se habilitado). Migration roda como initContainer
+do próprio pod da api (ver api-deployment.yaml), não como Job separado --
+por isso o selector "api" já cobre migration.
+
+Estratégia: proteção seletiva dos backends (não default-deny-all), pra não
+depender do nome/label do namespace do ingress controller.
+*/}}
+{{- if and .Values.networkPolicy.enabled .Values.postgres.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform-chart.fullname" . }}-isolate-postgres
+  labels:
+    {{- include "platform-chart.componentLabels" (dict "component" "postgres" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "platform-chart.componentSelectorLabels" (dict "component" "postgres" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- if .Values.api.enabled }}
+        - podSelector:
+            matchLabels:
+              {{- include "platform-chart.componentSelectorLabels" (dict "component" "api" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 14 }}
+        {{- end }}
+        {{- if .Values.cronjob.enabled }}
+        - podSelector:
+            matchLabels:
+              {{- include "platform-chart.componentSelectorLabels" (dict "component" "cronjob" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 14 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 5432
+{{- end }}
+{{- if and .Values.networkPolicy.enabled .Values.redis.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "platform-chart.fullname" . }}-isolate-redis
+  labels:
+    {{- include "platform-chart.componentLabels" (dict "component" "redis" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "platform-chart.componentSelectorLabels" (dict "component" "redis" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- if .Values.api.enabled }}
+        - podSelector:
+            matchLabels:
+              {{- include "platform-chart.componentSelectorLabels" (dict "component" "api" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 14 }}
+        {{- end }}
+        {{- if .Values.cronjob.enabled }}
+        - podSelector:
+            matchLabels:
+              {{- include "platform-chart.componentSelectorLabels" (dict "component" "cronjob" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 14 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 6379
+{{- end }}

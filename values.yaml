@@ -109,6 +109,27 @@ postgres:
     requests: {cpu: 50m, memory: 128Mi}
     limits: {cpu: 250m, memory: 512Mi}
 
+# -- Redis self-hosted (cache/sessão/pub-sub). Sem persistência (emptyDir) --
+# pensado pra cache/broker efêmero, não pra dado que precise sobreviver a um
+# restart do pod. Se precisar de persistência real, considere um serviço
+# gerenciado.
+redis:
+  enabled: false
+  image:
+    repository: redis
+    tag: "7-bookworm"
+  resources:
+    requests: {cpu: 25m, memory: 32Mi}
+    limits: {cpu: 100m, memory: 128Mi}
+
+# -- NetworkPolicy isolando Postgres/Redis self-hosted: só aceitam conexão
+# dos componentes deste release que legitimamente precisam (api sempre;
+# cronjob se habilitado). Não afeta ingress/egress da api -- só protege os
+# backends. Desligado por padrão pra não quebrar clusters sem um CNI que
+# aplique NetworkPolicy.
+networkPolicy:
+  enabled: false
+
 # -- Segredos da aplicação. `data` é um mapa livre chave/valor -- o chart não
 # assume nomes de campo específicos de nenhum app.
 # Em produção prefira `create: false` + `existingSecret` apontando pra um

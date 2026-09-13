@@ -1,0 +1,15 @@
+{{- if .Values.redis.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "platform-chart.fullname" . }}-redis
+  labels:
+    {{- include "platform-chart.componentLabels" (dict "component" "redis" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 4 }}
+spec:
+  selector:
+    {{- include "platform-chart.componentSelectorLabels" (dict "component" "redis" "Release" .Release "Chart" .Chart "Values" .Values) | nindent 4 }}
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+{{- end }}

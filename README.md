@@ -49,12 +49,19 @@ Depois: `helm dependency build && helm template .` no repo do app (veja
 | Autoscaling da API | `api.autoscaling.enabled` (default `false`) | HorizontalPodAutoscaler |
 | Job periódico | `cronjob.enabled` (default `false`) | CronJob (um único, comando livre via `cronjob.command`) |
 | Postgres self-hosted | `postgres.enabled` (default `false`) | StatefulSet + Service headless |
+| Redis self-hosted | `redis.enabled` (default `false`) | Deployment (sem persistência) + Service |
+| NetworkPolicy | `networkPolicy.enabled` (default `false`) | Isola Postgres/Redis -- só aceitam conexão da api (e do cronjob, se habilitado) |
 | Secret gerenciado pelo chart | `secrets.create` (default `false`) | Secret a partir de `secrets.data` (mapa livre) |
 | Observabilidade (Prometheus Operator) | `monitoring.enabled` (default `false`) | ServiceMonitor (+ PrometheusRule se `monitoring.prometheusRule.enabled`) |
 
 Deliberadamente fora do chart por ora: `nodeSelector`/`tolerations`/
 `affinity`, múltiplos CronJobs por release, `PodDisruptionBudget`,
-`NetworkPolicy`, automação de secrets (Sealed Secrets/External Secrets).
+automação de secrets (Sealed Secrets/External Secrets -- isso fica a cargo
+do repo `<app>-infra` de cada app, via ExternalSecret + ClusterSecretStore).
+
+Nota sobre migration: ela roda como **initContainer do próprio pod da api**
+(`api.migration.*`), não como Job separado -- por isso o `networkPolicy`
+libera Postgres/Redis pro componente `api` inteiro, sem regra extra.
 
 ## Segredos e Postgres self-hosted em produção
 
