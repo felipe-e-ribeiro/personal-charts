@@ -31,10 +31,15 @@ spec:
             - secretRef:
                 name: {{ include "platform-chart.secretName" . }}
           {{- end }}
-          {{- if and .Values.secrets.databaseUrlEnvName (include "platform-chart.hasResolvedDatabaseUrl" .) }}
+          {{- if or (and .Values.secrets.databaseUrlEnvName (include "platform-chart.hasResolvedDatabaseUrl" .)) .Values.api.extraEnv }}
           env:
+            {{- if and .Values.secrets.databaseUrlEnvName (include "platform-chart.hasResolvedDatabaseUrl" .) }}
             - name: {{ .Values.secrets.databaseUrlEnvName }}
               value: {{ include "platform-chart.databaseUrl" . | quote }}
+            {{- end }}
+            {{- with .Values.api.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
       {{- end }}
       containers:

@@ -10,6 +10,9 @@ api:
   migration:
     enabled: true
     command: ["alembic", "upgrade", "head"]
+  extraEnv:
+    - name: TIMEZONE
+      value: "America/Sao_Paulo"
 
 frontend:
   enabled: true
