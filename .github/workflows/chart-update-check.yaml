@@ -1,0 +1,94 @@
+name: 'Chart Update Check'
+
+# Workflow reusável: verifica se há uma versão nova de chart disponível
+# (Renovate self-hosted) e abre PR no repo CHAMADOR, não neste. Hospedado
+# aqui (personal-charts é público) porque um repo privado de conta pessoal
+# só pode ter seu workflow reusável chamado por OUTROS repos privados do
+# mesmo dono -- um repo reusável público, como este, pode ser chamado por
+# qualquer repo, público ou privado. Ver histórico da decisão em
+# PERSONAL-INFRA-CONTEXT.md.
+
+on:
+  workflow_call:
+    inputs:
+      manager:
+        description: >
+          Manager do Renovate a usar: 'helmv3' (dependencies em Chart.yaml,
+          ex: checklist-compras-infra) ou 'argocd' (chart + targetRevision
+          em Application/ApplicationSet do ArgoCD, ex: argocd-bootstrap).
+        required: false
+        type: string
+        default: 'helmv3'
+      path_charts:
+        description: >
+          Lista de glob patterns a verificar, uma por linha. Suporta
+          wildcards (** e *). Ex: "Chart.yaml" ou "apps/*.yaml"
+        required: true
+        type: string
+      group_updates:
+        description: 'true = agrupa todos os bumps num PR único; false = um PR por chart'
+        required: false
+        type: boolean
+        default: true
+      dry_run:
+        description: 'true = Renovate só loga o que faria, não escreve nada'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-and-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo chamador
+        uses: actions/checkout@v4
+
+      - name: Converter path_charts (multi-linha) em array JSON
+        id: paths
+        run: |
+          json=$(printf '%s\n' "${{ inputs.path_charts }}" \
+            | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "file_match=$json" >> "$GITHUB_OUTPUT"
+
+      - name: Gerar renovate-config.json
+        run: |
+          if [ "${{ inputs.group_updates }}" = "true" ]; then
+            GROUP_LINE='"groupName": "chart updates",'
+          else
+            GROUP_LINE=''
+          fi
+
+          # Sem hostRules/ACR: neste ecossistema pessoal não existe registry
+          # privado. O platform-chart é público (oci://ghcr.io/felipe-e-
+          # ribeiro/charts) e os charts usados no argocd-bootstrap vêm de
+          # repos Helm públicos (ex: charts.external-secrets.io) -- cada
+          # dependency é resolvida pelo seu próprio repository/repoURL,
+          # anônimo, sem token.
+          cat > renovate-config.json <<JSON
+          {
+            "extends": ["config:recommended"],
+            "${{ inputs.manager }}": { "fileMatch": ${{ steps.paths.outputs.file_match }} },
+            "packageRules": [
+              {
+                "matchManagers": ["${{ inputs.manager }}"],
+                ${GROUP_LINE}
+                "matchUpdateTypes": ["minor", "patch", "major"]
+              }
+            ],
+            "prConcurrentLimit": 1
+          }
+          JSON
+          cat renovate-config.json
+
+      - name: Rodar Renovate self-hosted
+        uses: renovatebot/github-action@v46.3.1
+        with:
+          configurationFile: renovate-config.json
+          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_DRY_RUN: ${{ inputs.dry_run && 'full' || 'false' }}
