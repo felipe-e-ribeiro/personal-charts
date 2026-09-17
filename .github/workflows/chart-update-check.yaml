@@ -40,6 +40,11 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # Mesmo com dependencyDashboard: false, o Renovate ainda tenta
+  # checar/fechar uma issue de dashboard existente -- sem "issues", a API
+  # do GitHub recusa com "integration-unauthorized" (confirmado num
+  # dry-run real).
+  issues: write
 
 jobs:
   check-and-update:
