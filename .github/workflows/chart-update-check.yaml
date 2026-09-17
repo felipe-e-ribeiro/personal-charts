@@ -21,8 +21,9 @@ on:
         default: 'helmv3'
       path_charts:
         description: >
-          Lista de glob patterns a verificar, uma por linha. Suporta
-          wildcards (** e *). Ex: "Chart.yaml" ou "apps/*.yaml"
+          Lista de glob patterns (managerFilePatterns) a verificar, uma por
+          linha. Suporta wildcards (** e *). Ex: "Chart.yaml" ou
+          "apps/*.yaml"
         required: true
         type: string
       group_updates:
@@ -68,10 +69,22 @@ jobs:
           # repos Helm públicos (ex: charts.external-secrets.io) -- cada
           # dependency é resolvida pelo seu próprio repository/repoURL,
           # anônimo, sem token.
+          #
+          # onboarding: false -- sem isso o Renovate (repo sem renovate.json
+          # próprio) fica preso pedindo um PR de onboarding pra sempre e
+          # nunca chega a checar a versão do chart de verdade (confirmado
+          # num dry-run real: result "onboarding", onboarded: false).
+          # enabledManagers restringe a extração só ao manager pedido --
+          # sem isso, config:recommended liga também github-actions/
+          # helm-values e passa a mexer em coisa que não é "chart".
           cat > renovate-config.json <<JSON
           {
             "extends": ["config:recommended"],
-            "${{ inputs.manager }}": { "fileMatch": ${{ steps.paths.outputs.file_match }} },
+            "onboarding": false,
+            "requireConfig": "ignored",
+            "dependencyDashboard": false,
+            "enabledManagers": ["${{ inputs.manager }}"],
+            "${{ inputs.manager }}": { "managerFilePatterns": ${{ steps.paths.outputs.file_match }} },
             "packageRules": [
               {
                 "matchManagers": ["${{ inputs.manager }}"],
