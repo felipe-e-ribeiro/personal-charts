@@ -6,8 +6,10 @@ name: 'ArgoCD Status README'
 # um output do Terraform...), então app novo = card novo, sem lista
 # mantida à mão.
 #
-# A seção fica entre os marcadores abaixo (criada no fim do README se não
-# existir). Só commita se o conteúdo mudou; o commit usa o GITHUB_TOKEN,
+# A seção fica entre os marcadores abaixo. Se não existir, é criada no
+# TOPO do README, logo abaixo do título (# ...); se já existir, é
+# reescrita no lugar onde está. Só commita se o conteúdo mudou; o commit
+# usa o GITHUB_TOKEN,
 # que não dispara outros workflows (sem loop).
 #
 #   <!-- argocd-status:start -->
@@ -95,7 +97,10 @@ jobs:
           if pattern.search(text):
               new = pattern.sub(lambda _: section, text)
           else:
-              new = text.rstrip("\n") + "\n\n" + section + "\n"
+              # Seção nova vai pro topo: logo abaixo do título (# ...).
+              m = re.search(r"^# .*\n", text, re.M)
+              cut = m.end() if m else 0
+              new = text[:cut] + "\n" + section + "\n\n" + text[cut:].lstrip("\n")
           if new != text:
               open(path, "w", encoding="utf-8", newline="\n").write(new)
               print(f"{path}: seção atualizada ({len(apps)} apps)")
