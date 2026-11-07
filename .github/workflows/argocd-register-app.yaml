@@ -1,0 +1,153 @@
+name: 'ArgoCD Register App'
+
+# Workflow reusável: o repo CHAMADOR (um <app>-infra) registra, atualiza ou
+# remove a própria Application no ArgoCD do oks-personal, pela API (ingress
+# público), com a conta `ci`. Substitui o apps-registry/ estático do antigo
+# argocd-bootstrap: criou o repo a partir do app-infra-template + cadastrou
+# o secret ARGOCD_TOKEN = o app aparece no ArgoCD no primeiro push.
+#
+# Limites (definidos no Terraform do oks-personal-infra, não aqui): a conta
+# `ci` só cria Application no project "apps", que só aceita repos
+# felipe-e-ribeiro/*-infra, bloqueia namespaces de sistema/addons e só
+# deixa criar Namespace no nível do cluster.
+#
+# Hospedado aqui porque personal-charts é público: repo reusável público
+# pode ser chamado por qualquer repo (público ou privado) do usuário.
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: 'Nome da Application (padrão: nome do repo sem o sufixo -infra).'
+        required: false
+        type: string
+        default: ''
+      namespace:
+        description: 'Namespace de destino (padrão: igual ao app_name).'
+        required: false
+        type: string
+        default: ''
+      path:
+        description: 'Caminho do chart dentro do repo.'
+        required: false
+        type: string
+        default: '.'
+      revision:
+        description: 'Branch/tag que o ArgoCD acompanha.'
+        required: false
+        type: string
+        default: 'main'
+      unregister:
+        description: 'true = REMOVE a Application e tudo que ela instalou (cascade).'
+        required: false
+        type: boolean
+        default: false
+      argocd_server:
+        description: 'Host do ArgoCD.'
+        required: false
+        type: string
+        default: 'argo.felipeduribeiro.com.br'
+    secrets:
+      ARGOCD_TOKEN:
+        description: 'Token da conta `ci` do ArgoCD.'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  register:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: argocd-register-${{ github.repository }}
+      cancel-in-progress: false
+    env:
+      ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
+      SERVER: ${{ inputs.argocd_server }}
+      APP_NAME: ${{ inputs.app_name }}
+      NAMESPACE: ${{ inputs.namespace }}
+      APP_PATH: ${{ inputs.path }}
+      REVISION: ${{ inputs.revision }}
+    steps:
+      - name: Resolve nome, namespace e repo
+        id: app
+        run: |
+          set -euo pipefail
+          if [ -z "${ARGOCD_TOKEN}" ]; then
+            echo "::error::Secret ARGOCD_TOKEN não cadastrado neste repo (ver README do app-infra-template)."
+            exit 1
+          fi
+          repo="${GITHUB_REPOSITORY#*/}"
+          name="${APP_NAME:-${repo%-infra}}"
+          ns="${NAMESPACE:-$name}"
+          for v in "$name" "$ns"; do
+            if ! echo "$v" | grep -Eq '^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$'; then
+              echo "::error::'$v' não é um nome válido de Application/namespace (minúsculas, números e '-')."
+              exit 1
+            fi
+          done
+          {
+            echo "name=$name"
+            echo "namespace=$ns"
+            echo "repo_url=git@github.com:${GITHUB_REPOSITORY}.git"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upsert da Application
+        if: ${{ !inputs.unregister }}
+        env:
+          NAME: ${{ steps.app.outputs.name }}
+          NS: ${{ steps.app.outputs.namespace }}
+          REPO_URL: ${{ steps.app.outputs.repo_url }}
+        run: |
+          set -euo pipefail
+          body=$(jq -n \
+            --arg name "$NAME" --arg ns "$NS" --arg repo "$REPO_URL" \
+            --arg path "$APP_PATH" --arg rev "$REVISION" --arg src "$GITHUB_REPOSITORY" \
+            '{
+              metadata: {
+                name: $name,
+                namespace: "argocd",
+                labels: {"app.kubernetes.io/managed-by": "argocd-register-app", "oks-personal/tier": "app"},
+                annotations: {"oks-personal/registered-by": $src},
+                finalizers: ["resources-finalizer.argocd.argoproj.io"]
+              },
+              spec: {
+                project: "apps",
+                source: {repoURL: $repo, targetRevision: $rev, path: $path},
+                destination: {server: "https://kubernetes.default.svc", namespace: $ns},
+                syncPolicy: {
+                  automated: {prune: true, selfHeal: true},
+                  syncOptions: ["CreateNamespace=true"]
+                }
+              }
+            }')
+          code=$(curl -sS -o resp.json -w '%{http_code}' -X POST \
+            "https://${SERVER}/api/v1/applications?upsert=true&validate=true" \
+            -H "Authorization: Bearer ${ARGOCD_TOKEN}" -H 'Content-Type: application/json' \
+            -d "$body")
+          if [ "$code" != "200" ]; then
+            echo "::error::ArgoCD respondeu HTTP $code ao registrar '$NAME'."
+            jq . resp.json 2>/dev/null || cat resp.json
+            exit 1
+          fi
+          {
+            echo "### ArgoCD: \`$NAME\` registrada"
+            echo "- repo: \`$REPO_URL\` (\`$REVISION\`, path \`$APP_PATH\`)"
+            echo "- namespace: \`$NS\` / project: \`apps\`"
+            echo "- https://${SERVER}/applications/argocd/${NAME}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove a Application (cascade)
+        if: ${{ inputs.unregister }}
+        env:
+          NAME: ${{ steps.app.outputs.name }}
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o resp.json -w '%{http_code}' -X DELETE \
+            "https://${SERVER}/api/v1/applications/${NAME}?cascade=true&appNamespace=argocd" \
+            -H "Authorization: Bearer ${ARGOCD_TOKEN}")
+          case "$code" in
+            200) echo "### ArgoCD: \`$NAME\` removida (com os recursos dela)" >> "$GITHUB_STEP_SUMMARY" ;;
+            404) echo "Application '$NAME' já não existe." ;;
+            *)   echo "::error::ArgoCD respondeu HTTP $code ao remover '$NAME'."; cat resp.json; exit 1 ;;
+          esac
