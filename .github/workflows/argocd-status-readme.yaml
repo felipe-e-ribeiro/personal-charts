@@ -1,0 +1,118 @@
+name: 'ArgoCD Status README'
+
+# Workflow reusável: escreve no README do repo CHAMADOR uma tabela de
+# "cards" com o status ao vivo (badge de sync/health do ArgoCD) e o link de
+# cada Application. A lista de apps vem do chamador (das pastas do repo, de
+# um output do Terraform...), então app novo = card novo, sem lista
+# mantida à mão.
+#
+# A seção fica entre os marcadores abaixo (criada no fim do README se não
+# existir). Só commita se o conteúdo mudou; o commit usa o GITHUB_TOKEN,
+# que não dispara outros workflows (sem loop).
+#
+#   <!-- argocd-status:start -->
+#   <!-- argocd-status:end -->
+
+on:
+  workflow_call:
+    inputs:
+      apps_json:
+        description: >
+          JSON: lista de {"name": app, "namespace": ns, "detail": texto,
+          "badge": true|false}. badge=false = sem badge (ex.: o próprio
+          ArgoCD, que não é uma Application).
+        required: true
+        type: string
+      title:
+        description: 'Título da seção.'
+        required: false
+        type: string
+        default: 'Status no ArgoCD'
+      intro:
+        description: 'Texto opcional abaixo do título.'
+        required: false
+        type: string
+        default: ''
+      readme:
+        description: 'Arquivo a atualizar.'
+        required: false
+        type: string
+        default: 'README.md'
+      argocd_server:
+        description: 'Host do ArgoCD.'
+        required: false
+        type: string
+        default: 'argo.felipeduribeiro.com.br'
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: argocd-status-readme-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Renderiza a seção
+        env:
+          APPS_JSON: ${{ inputs.apps_json }}
+          TITLE: ${{ inputs.title }}
+          INTRO: ${{ inputs.intro }}
+          README: ${{ inputs.readme }}
+          SERVER: ${{ inputs.argocd_server }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, urllib.parse
+          apps = sorted(json.loads(os.environ["APPS_JSON"]), key=lambda a: a["name"])
+          server = os.environ["SERVER"]
+          start, end = "<!-- argocd-status:start -->", "<!-- argocd-status:end -->"
+          lines = [start, f"## {os.environ['TITLE']}", ""]
+          if os.environ["INTRO"]:
+              lines += [os.environ["INTRO"], ""]
+          lines += ["| App | Status | Namespace | Detalhe |", "|---|---|---|---|"]
+          for a in apps:
+              name = a["name"]
+              q = urllib.parse.quote(name)
+              if a.get("badge", True):
+                  link = f"https://{server}/applications/argocd/{q}"
+                  status = f"[![{name}](https://{server}/api/badge?name={q}&revision=true)]({link})"
+              else:
+                  link = f"https://{server}/"
+                  status = "—"
+              ns = f"`{a['namespace']}`" if a.get("namespace") else "—"
+              detail = (a.get("detail") or "").replace("|", "\\|").replace("\n", " ")
+              lines.append(f"| [**{name}**]({link}) | {status} | {ns} | {detail} |")
+          lines += ["", "_Gerado por `argocd-status-readme` (personal-charts); não editar à mão._", end]
+          section = "\n".join(lines)
+          path = os.environ["README"]
+          text = open(path, encoding="utf-8").read() if os.path.exists(path) else ""
+          pattern = re.compile(re.escape(start) + r".*?" + re.escape(end), re.S)
+          if pattern.search(text):
+              new = pattern.sub(lambda _: section, text)
+          else:
+              new = text.rstrip("\n") + "\n\n" + section + "\n"
+          if new != text:
+              open(path, "w", encoding="utf-8", newline="\n").write(new)
+              print(f"{path}: seção atualizada ({len(apps)} apps)")
+          else:
+              print(f"{path}: sem mudança")
+          PY
+
+      - name: Commit (se mudou)
+        env:
+          README: ${{ inputs.readme }}
+        run: |
+          if git diff --quiet -- "$README"; then
+            echo "Nada a commitar."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$README"
+          git commit -m "docs: atualiza status do ArgoCD no ${README}"
+          git push
