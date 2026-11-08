@@ -59,8 +59,8 @@ spec:
             - name: {{ .Values.secrets.databaseUrlEnvName }}
               value: {{ include "platform-chart.databaseUrl" . | quote }}
             {{- end }}
-            {{- if .Values.ingress.publicUrlEnvName }}
-            - name: {{ .Values.ingress.publicUrlEnvName }}
+            {{- if .Values.httpRoute.publicUrlEnvName }}
+            - name: {{ .Values.httpRoute.publicUrlEnvName }}
               value: {{ include "platform-chart.publicUrl" . | quote }}
             {{- end }}
             {{- with .Values.api.extraEnv }}

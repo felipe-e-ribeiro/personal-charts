@@ -31,7 +31,7 @@ platform-chart:
     image:
       repository: ghcr.io/<usuario>/minha-api
       tag: "sha-abc123"
-  ingress:
+  httpRoute:
     enabled: true
     host: minha-api.seudominio.dev
 ```
@@ -45,7 +45,7 @@ Depois: `helm dependency build && helm template .` no repo do app (veja
 |---|---|---|
 | API HTTP | `api.enabled` (default `true`) | Deployment + Service |
 | Frontend estático | `frontend.enabled` (default `false`) | Deployment + Service |
-| Ingress | `ingress.enabled` (default `false`) | Ingress roteando `/` pro frontend e `ingress.apiPath` pra API, quando ambos coexistem |
+| Entrada HTTP | `httpRoute.enabled` (default `false`) | HTTPRoute (Gateway API) no Gateway `public` do Envoy Gateway, roteando `/` pro frontend e `httpRoute.apiPath` pra API quando ambos coexistem; `httpRoute.timeout` opcional (`"0s"` pra WebSocket). Substituiu o Ingress na 0.3.0 |
 | Autoscaling da API | `api.autoscaling.enabled` (default `false`) | HorizontalPodAutoscaler |
 | Job periódico | `cronjob.enabled` (default `false`) | CronJob (um único, comando livre via `cronjob.command`) |
 | Postgres self-hosted | `postgres.enabled` (default `false`) | StatefulSet + Service headless |

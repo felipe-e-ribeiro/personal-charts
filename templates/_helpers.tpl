@@ -80,11 +80,11 @@ true
 {{- end -}}
 
 {{/*
-Base URL pública do app, derivada de ingress.host (com https quando TLS
-está ligado). Só faz sentido se ingress.enabled.
+Base URL pública do app, derivada de httpRoute.host. Sempre https: o TLS
+termina no Gateway. Só faz sentido se httpRoute.enabled.
 */}}
 {{- define "platform-chart.publicUrl" -}}
-{{- printf "%s://%s" (ternary "https" "http" .Values.ingress.tls.enabled) .Values.ingress.host -}}
+{{- printf "https://%s" .Values.httpRoute.host -}}
 {{- end -}}
 
 {{/*

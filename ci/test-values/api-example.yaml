@@ -7,9 +7,6 @@ api:
     tag: "1.0.0"
   port: 8080
 
-ingress:
+httpRoute:
   enabled: true
   host: api-example.example.com
-  tls:
-    enabled: true
-    secretName: api-example-tls

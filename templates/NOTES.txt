@@ -1,17 +1,14 @@
 App "{{ .Release.Name }}" instalado no namespace "{{ .Release.Namespace }}" via platform-chart.
 
-{{- if .Values.ingress.enabled }}
+{{- if .Values.httpRoute.enabled }}
 
 URL pública: {{ include "platform-chart.publicUrl" . }}
-{{- if .Values.ingress.tls.enabled }}
-TLS via secret "{{ .Values.ingress.tls.secretName }}" -- confira se o
-cluster-issuer do cert-manager referenciado nas annotations do Ingress
-existe no cluster antes do primeiro deploy, senão o certificado fica preso
-em "pending".
-{{- end }}
+HTTPRoute pendurada em {{ (first .Values.httpRoute.parentRefs).name }} -- confira com
+  kubectl get httproute -n {{ .Release.Namespace }} {{ include "platform-chart.fullname" . }}
+(condição Accepted/ResolvedRefs). O TLS é o do Gateway.
 {{- else }}
 
-Ingress desabilitado -- exponha o(s) Service(s) por outro meio (port-forward,
+HTTPRoute desabilitada -- exponha o(s) Service(s) por outro meio (port-forward,
 LoadBalancer, etc).
 {{- end }}
 

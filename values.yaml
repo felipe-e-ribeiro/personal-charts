@@ -54,19 +54,27 @@ frontend:
     readiness: {initialDelaySeconds: 3, periodSeconds: 10}
     liveness: {initialDelaySeconds: 10, periodSeconds: 20}
 
-ingress:
+# -- Entrada HTTP via Gateway API (HTTPRoute). Substituiu o `ingress` na
+# 0.3.0: o ingress-nginx saiu do oks-personal e o tráfego entra pelo
+# Envoy Gateway, que já termina o TLS com o cert wildcard.
+httpRoute:
   enabled: false
-  className: "nginx"
-  annotations: {}
   host: ""
-  tls:
-    enabled: false
-    secretName: ""
+  # -- Gateway/listener onde a rota se pendura. O default é o Gateway
+  # compartilhado do oks-personal (listener https, *.felipeduribeiro.com.br).
+  parentRefs:
+    - name: public
+      namespace: envoy-gateway-system
+      sectionName: https
+  # -- Timeout por requisição das rotas da API (Gateway API
+  # `timeouts.request`). Vazio = default do Envoy (15s); "0s" desliga, pra
+  # WebSocket/SSE/conexão longa.
+  timeout: ""
   # -- Path onde a API é roteada quando api e frontend coexistem no mesmo
   # host (evita CORS). Se `frontend.enabled: false`, a API fica na raiz.
   apiPath: /api
   # -- Se definido, injeta uma env var no container da API com a URL pública
-  # derivada de `ingress.host`/`ingress.tls.enabled` (ex: "PUBLIC_BASE_URL").
+  # `https://<httpRoute.host>` (ex: "PUBLIC_BASE_URL").
   # Deixe vazio pra não injetar nada.
   publicUrlEnvName: ""
 
