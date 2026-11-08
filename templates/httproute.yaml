@@ -1,0 +1,47 @@
+{{/*
+HTTPRoute no Gateway compartilhado (Gateway API). No oks-personal é o
+Gateway "public" do Envoy Gateway, que termina o TLS com o cert wildcard --
+por isso não tem Certificate/secret de TLS aqui. Substitui o Ingress
+(ingress-nginx), que saiu do cluster na 0.3.0.
+*/}}
+{{- if .Values.httpRoute.enabled }}
+{{- $fullname := include "platform-chart.fullname" . }}
+{{- $timeout := .Values.httpRoute.timeout }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ $fullname }}
+  labels:
+    {{- include "platform-chart.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    {{- toYaml .Values.httpRoute.parentRefs | nindent 4 }}
+  hostnames:
+    - {{ required "httpRoute.host é obrigatório com httpRoute.enabled" .Values.httpRoute.host | quote }}
+  rules:
+    {{- if and .Values.api.enabled .Values.frontend.enabled }}
+    {{- /* Ambos coexistem no mesmo host: API fica sob apiPath, frontend pega o resto (mesmo domínio, sem CORS). */}}
+    - matches:
+        - path: {type: PathPrefix, value: {{ .Values.httpRoute.apiPath | quote }}}
+      backendRefs:
+        - name: {{ $fullname }}-api
+          port: 80
+      {{- with $timeout }}
+      timeouts: {request: {{ . | quote }}}
+      {{- end }}
+    - matches:
+        - path: {type: PathPrefix, value: /}
+      backendRefs:
+        - name: {{ $fullname }}-frontend
+          port: 80
+    {{- else }}
+    - matches:
+        - path: {type: PathPrefix, value: /}
+      backendRefs:
+        - name: {{ $fullname }}-{{ ternary "api" "frontend" .Values.api.enabled }}
+          port: 80
+      {{- with $timeout }}
+      timeouts: {request: {{ . | quote }}}
+      {{- end }}
+    {{- end }}
+{{- end }}
